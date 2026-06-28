@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="내 운동앱">
-  <link rel="apple-touch-icon" href="https://via.placeholder.com/192/000000/FF0000?text=Workout">
+  <meta name="apple-mobile-web-app-title" content="플릭클론">
+  <link rel="apple-touch-icon" href="https://via.placeholder.com/192/000000/DC2626?text=F">
   <title>운동 기록</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -17,150 +17,265 @@
   <style>
     body { 
       -webkit-tap-highlight-color: transparent; 
-      background-color: #0a0a0a; /* 깊은 검은색 배경 */
+      background-color: #000000; /* 완전한 블랙베이스 */
+      color: #ffffff;
     }
-    /* 아이폰 노치 및 다이내믹 아일랜드 안전 영역 확보 */
-    .safe-pt { padding-top: calc(env(safe-area-inset-top) + 1.5rem); }
-    
-    /* 다크모드에서 날짜 선택창 아이콘 색상 반전 (사파리 전용) */
-    ::-webkit-calendar-picker-indicator { filter: invert(1); }
+    .safe-pt { padding-top: calc(env(safe-area-inset-top) + 1rem); }
+    .safe-pb { padding-bottom: calc(env(safe-area-inset-bottom) + 6rem); }
+    /* 스크롤바 숨김 (깔끔한 UI 유지) */
+    ::-webkit-scrollbar { display: none; }
+    /* 날짜 선택 아이콘 색상 반전 */
+    ::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+    /* 넘버 인풋 화살표 숨김 */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   </style>
 </head>
-<body class="text-gray-100 selection:bg-red-500/30">
+<body class="selection:bg-red-500/30 font-sans">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
 
     function App() {
       const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
-      const [workouts, setWorkouts] = useState({});
-      const [form, setForm] = useState({ name: '', weight: '', sets: '', reps: '' });
+      
+      // 데이터 구조 변경: { '2026-06-28': [ { id, name, sets: [ { id, weight, reps, isDone } ] } ] }
+      const [workoutsData, setWorkoutsData] = useState({});
+      
+      // 타이머 상태 관리
+      const [restTime, setRestTime] = useState(0);
+      const [isResting, setIsResting] = useState(false);
+      const timerRef = useRef(null);
 
+      // 로컬 스토리지 불러오기
       useEffect(() => {
-        const savedWorkouts = localStorage.getItem('myWorkouts');
-        if (savedWorkouts) {
-          setWorkouts(JSON.parse(savedWorkouts));
-        }
+        const saved = localStorage.getItem('fleekCloneData');
+        if (saved) setWorkoutsData(JSON.parse(saved));
       }, []);
 
+      // 로컬 스토리지 저장
       useEffect(() => {
-        if (Object.keys(workouts).length > 0) {
-          localStorage.setItem('myWorkouts', JSON.stringify(workouts));
+        if (Object.keys(workoutsData).length > 0) {
+          localStorage.setItem('fleekCloneData', JSON.stringify(workoutsData));
         }
-      }, [workouts]);
+      }, [workoutsData]);
 
-      const handleAdd = (e) => {
-        e.preventDefault();
-        if (!form.name.trim()) return;
-        const newWorkout = { ...form, id: Date.now() };
-        setWorkouts(prev => ({
-          ...prev,
-          [currentDate]: [...(prev[currentDate] || []), newWorkout]
-        }));
-        setForm({ name: '', weight: '', sets: '', reps: '' });
+      // 휴식 타이머 로직 (1초마다 감소)
+      useEffect(() => {
+        if (isResting && restTime > 0) {
+          timerRef.current = setTimeout(() => setRestTime(prev => prev - 1), 1000);
+        } else if (restTime === 0) {
+          setIsResting(false);
+        }
+        return () => clearTimeout(timerRef.current);
+      }, [isResting, restTime]);
+
+      const todaysWorkouts = workoutsData[currentDate] || [];
+
+      // 90초 타이머 시작 함수
+      const startTimer = () => {
+        setRestTime(90); 
+        setIsResting(true);
       };
 
-      const handleDelete = (id) => {
-        setWorkouts(prev => ({
+      // 1. 새로운 운동 종목 추가
+      const addExercise = () => {
+        const name = prompt('운동 종목을 입력하세요 (예: 벤치프레스)');
+        if (!name || !name.trim()) return;
+        
+        const newExercise = {
+          id: Date.now(),
+          name,
+          // 기본적으로 1세트 빈칸 생성
+          sets: [{ id: Date.now() + 1, weight: '', reps: '', isDone: false }]
+        };
+        
+        setWorkoutsData(prev => ({
           ...prev,
-          [currentDate]: prev[currentDate].filter(w => w.id !== id)
+          [currentDate]: [...(prev[currentDate] || []), newExercise]
         }));
       };
 
-      const todaysWorkouts = workouts[currentDate] || [];
+      // 2. 특정 운동에 세트 추가
+      const addSet = (exerciseId) => {
+        setWorkoutsData(prev => {
+          const dayData = prev[currentDate] || [];
+          const newData = dayData.map(ex => {
+            if (ex.id === exerciseId) {
+              const lastSet = ex.sets[ex.sets.length - 1];
+              return {
+                ...ex,
+                // 이전 세트의 무게와 횟수를 그대로 복사해서 새 세트 생성
+                sets: [...ex.sets, { 
+                  id: Date.now(), 
+                  weight: lastSet ? lastSet.weight : '', 
+                  reps: lastSet ? lastSet.reps : '', 
+                  isDone: false 
+                }]
+              };
+            }
+            return ex;
+          });
+          return { ...prev, [currentDate]: newData };
+        });
+      };
+
+      // 3. 세트의 무게나 횟수 입력 변경
+      const updateSet = (exerciseId, setId, field, value) => {
+        setWorkoutsData(prev => {
+          const dayData = prev[currentDate] || [];
+          const newData = dayData.map(ex => {
+            if (ex.id === exerciseId) {
+              return {
+                ...ex,
+                sets: ex.sets.map(s => s.id === setId ? { ...s, [field]: value } : s)
+              };
+            }
+            return ex;
+          });
+          return { ...prev, [currentDate]: newData };
+        });
+      };
+
+      // 4. 세트 완료(체크) 토글
+      const toggleSet = (exerciseId, setId, currentStatus) => {
+        updateSet(exerciseId, setId, 'isDone', !currentStatus);
+        
+        // 체크를 '완료'로 바꿨을 때만 타이머 시작
+        if (!currentStatus) {
+          startTimer();
+        }
+      };
+
+      // 5. 운동 삭제
+      const deleteExercise = (exerciseId) => {
+         if(confirm('이 운동을 삭제하시겠습니까?')) {
+             setWorkoutsData(prev => ({
+                ...prev,
+                [currentDate]: prev[currentDate].filter(ex => ex.id !== exerciseId)
+             }));
+         }
+      };
+
+      // 초(sec)를 분:초(mm:ss) 형식으로 변환
+      const formatTime = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+      };
 
       return (
-        <div className="min-h-screen pb-12">
-          <div className="max-w-md mx-auto bg-[#121212] min-h-screen shadow-2xl">
-            
-            {/* 헤더 영역 */}
-            <header className="bg-[#1a1a1a] safe-pt pb-6 px-6 rounded-b-3xl shadow-md border-b border-neutral-800">
-              <h1 className="text-2xl font-extrabold text-center mb-5 text-gray-100 tracking-tight">
-                <span className="text-red-600 mr-2">🩸</span>오늘의 운동
-              </h1>
-              <input
-                type="date"
-                value={currentDate}
+        <div className="min-h-screen bg-black safe-pb relative">
+          
+          {/* 상단 헤더 영역 (고정) */}
+          <header className="safe-pt px-6 pb-4 bg-[#0a0a0a] sticky top-0 z-10 border-b border-neutral-900/50 backdrop-blur-md bg-opacity-80">
+            <div className="flex justify-between items-center mb-1">
+              <h1 className="text-3xl font-extrabold tracking-tight">운동</h1>
+              <input 
+                type="date" 
+                value={currentDate} 
                 onChange={(e) => setCurrentDate(e.target.value)}
-                className="w-full bg-[#2a2a2a] text-white p-3 rounded-xl border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-red-600 text-lg font-semibold text-center tracking-wider"
+                className="bg-transparent text-red-500 font-bold text-lg focus:outline-none"
               />
-            </header>
+            </div>
+          </header>
 
-            <main className="p-6">
-              {/* 입력 폼 */}
-              <form onSubmit={handleAdd} className="bg-[#1a1a1a] p-5 rounded-2xl shadow-sm border border-neutral-800 mb-8 space-y-4">
-                <input 
-                  required 
-                  type="text" 
-                  placeholder="종목 (예: 벤치프레스)" 
-                  className="w-full bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
-                  value={form.name} 
-                  onChange={e => setForm({...form, name: e.target.value})} 
-                />
-                <div className="flex gap-3">
-                  <input 
-                    type="number" 
-                    placeholder="kg" 
-                    className="w-1/3 bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
-                    value={form.weight} 
-                    onChange={e => setForm({...form, weight: e.target.value})} 
-                  />
-                  <input 
-                    type="number" 
-                    placeholder="세트" 
-                    className="w-1/3 bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
-                    value={form.sets} 
-                    onChange={e => setForm({...form, sets: e.target.value})} 
-                  />
-                  <input 
-                    type="number" 
-                    placeholder="회" 
-                    className="w-1/3 bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
-                    value={form.reps} 
-                    onChange={e => setForm({...form, reps: e.target.value})} 
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className="w-full bg-red-600 hover:bg-red-700 text-white p-3 rounded-xl font-bold active:scale-95 transition-transform shadow-[0_0_15px_rgba(220,38,38,0.3)]"
-                >
-                  기록 추가하기
-                </button>
-              </form>
-
-              {/* 기록 리스트 */}
-              <div className="space-y-4">
-                {todaysWorkouts.length === 0 ? (
-                  <div className="text-center py-10 opacity-70">
-                    <p className="text-neutral-500 text-lg mb-2">기록이 없습니다.</p>
-                    <p className="text-red-500 font-semibold">득근하세요! 🔥</p>
-                  </div>
-                ) : (
-                  todaysWorkouts.map(w => (
-                    <div key={w.id} className="flex justify-between items-center p-4 bg-[#1a1a1a] border border-neutral-800 rounded-2xl shadow-sm hover:border-red-900 transition-colors">
-                      <div>
-                        <p className="font-bold text-gray-100 text-lg tracking-wide">{w.name}</p>
-                        <p className="text-sm text-neutral-400 mt-1">
-                          {w.weight && <span className="text-red-400 font-semibold">{w.weight}</span>}{w.weight && 'kg'} 
-                          {w.weight && w.sets && <span className="mx-1 text-neutral-600">|</span>} 
-                          {w.sets && <span className="text-gray-300">{w.sets}</span>}{w.sets && '세트'} 
-                          {(w.weight || w.sets) && w.reps && <span className="mx-1 text-neutral-600">|</span>} 
-                          {w.reps && <span className="text-gray-300">{w.reps}</span>}{w.reps && '회'}
-                        </p>
-                      </div>
-                      <button 
-                        onClick={() => handleDelete(w.id)} 
-                        className="text-neutral-600 p-2 text-2xl active:text-red-600 transition-colors"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))
-                )}
+          <main className="p-5 space-y-6 max-w-md mx-auto">
+            {todaysWorkouts.length === 0 && (
+              <div className="text-center py-20 text-neutral-500 font-semibold text-lg">
+                하단 버튼을 눌러<br/>첫 운동을 시작하세요.
               </div>
-            </main>
-          </div>
+            )}
+
+            {/* 운동 카드 렌더링 */}
+            {todaysWorkouts.map((ex) => (
+              <div key={ex.id} className="bg-[#121212] rounded-3xl p-5 border border-neutral-800/80 shadow-lg">
+                <div className="flex justify-between items-center mb-5">
+                  <h2 className="text-2xl font-bold text-gray-100 tracking-wide">{ex.name}</h2>
+                  <button onClick={() => deleteExercise(ex.id)} className="text-neutral-600 text-sm font-bold active:text-red-500 transition">삭제</button>
+                </div>
+                
+                {/* 세트 리스트 헤더 */}
+                <div className="flex text-neutral-500 text-xs font-bold mb-3 px-2 tracking-wider">
+                  <div className="w-10 text-center">세트</div>
+                  <div className="flex-1 text-center">kg</div>
+                  <div className="flex-1 text-center">회</div>
+                  <div className="w-12 text-center">완료</div>
+                </div>
+
+                {/* 개별 세트 리스트 */}
+                <div className="space-y-2">
+                  {ex.sets.map((set, index) => (
+                    <div key={set.id} className={`flex items-center bg-[#1a1a1a] rounded-2xl p-2 transition-all duration-300 ${set.isDone ? 'opacity-40 bg-[#0a0a0a]' : ''}`}>
+                      <div className="w-10 text-center font-bold text-neutral-500">{index + 1}</div>
+                      <div className="flex-1 px-1">
+                        <input 
+                          type="number" 
+                          value={set.weight}
+                          onChange={(e) => updateSet(ex.id, set.id, 'weight', e.target.value)}
+                          className={`w-full bg-transparent text-center text-xl font-bold focus:outline-none placeholder-neutral-700 ${set.isDone ? 'text-neutral-500' : 'text-gray-200'}`}
+                          placeholder="-"
+                          readOnly={set.isDone}
+                        />
+                      </div>
+                      <div className="flex-1 px-1">
+                        <input 
+                          type="number" 
+                          value={set.reps}
+                          onChange={(e) => updateSet(ex.id, set.id, 'reps', e.target.value)}
+                          className={`w-full bg-transparent text-center text-xl font-bold focus:outline-none placeholder-neutral-700 ${set.isDone ? 'text-neutral-500' : 'text-gray-200'}`}
+                          placeholder="-"
+                          readOnly={set.isDone}
+                        />
+                      </div>
+                      <div className="w-12 flex justify-center">
+                        <button 
+                          onClick={() => toggleSet(ex.id, set.id, set.isDone)}
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg transition-all ${set.isDone ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-[#2a2a2a] text-transparent hover:bg-[#333]'}`}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 세트 추가 버튼 */}
+                <button 
+                  onClick={() => addSet(ex.id)}
+                  className="w-full mt-4 py-3 rounded-2xl bg-transparent border-2 border-dashed border-neutral-800 text-neutral-400 font-bold text-sm active:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
+                >
+                  <span className="text-lg leading-none">+</span> 세트 추가
+                </button>
+              </div>
+            ))}
+
+            {/* 운동 추가 버튼 */}
+            <button 
+              onClick={addExercise}
+              className="w-full py-5 rounded-2xl bg-red-600 text-white font-extrabold text-lg shadow-[0_5px_20px_rgba(220,38,38,0.3)] active:scale-95 transition-transform flex justify-center items-center gap-2"
+            >
+              운동 추가하기
+            </button>
+          </main>
+
+          {/* 하단 플로팅 휴식 타이머 */}
+          {isResting && (
+            <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-[#1a1a1a] border border-neutral-800 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-5 z-50 backdrop-blur-md w-max">
+              <div className="flex items-center gap-2 text-red-500">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-ping"></div>
+                <span className="text-sm font-bold tracking-widest">REST</span>
+              </div>
+              <div className="text-3xl font-mono font-bold tracking-wider w-20 text-center">{formatTime(restTime)}</div>
+              <button 
+                onClick={() => setIsResting(false)}
+                className="bg-neutral-800 text-neutral-400 px-4 py-2 rounded-xl text-sm font-bold active:bg-neutral-700 transition"
+              >
+                SKIP
+              </button>
+            </div>
+          )}
         </div>
       );
     }
