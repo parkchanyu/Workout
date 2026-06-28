@@ -2,12 +2,11 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <!-- 아이폰 앱처럼 보이게 하는 필수 메타 태그 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="내 운동앱">
-  <link rel="apple-touch-icon" href="https://via.placeholder.com/192/3B82F6/FFFFFF?text=Workout">
+  <link rel="apple-touch-icon" href="https://via.placeholder.com/192/000000/FF0000?text=Workout">
   <title>운동 기록</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,13 +15,18 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
   <style>
-    /* 아이폰에서 터치할 때 생기는 파란색 하이라이트 제거 */
-    body { -webkit-tap-highlight-color: transparent; }
-    /* 상태바 영역(노치) 확보를 위한 패딩 */
-    .app-container { padding-top: env(safe-area-inset-top); }
+    body { 
+      -webkit-tap-highlight-color: transparent; 
+      background-color: #0a0a0a; /* 깊은 검은색 배경 */
+    }
+    /* 아이폰 노치 및 다이내믹 아일랜드 안전 영역 확보 */
+    .safe-pt { padding-top: calc(env(safe-area-inset-top) + 1.5rem); }
+    
+    /* 다크모드에서 날짜 선택창 아이콘 색상 반전 (사파리 전용) */
+    ::-webkit-calendar-picker-indicator { filter: invert(1); }
   </style>
 </head>
-<body class="bg-gray-100 selection:bg-blue-200">
+<body class="text-gray-100 selection:bg-red-500/30">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -33,7 +37,6 @@
       const [workouts, setWorkouts] = useState({});
       const [form, setForm] = useState({ name: '', weight: '', sets: '', reps: '' });
 
-      // 앱 실행 시 아이폰 로컬 스토리지에서 데이터 불러오기
       useEffect(() => {
         const savedWorkouts = localStorage.getItem('myWorkouts');
         if (savedWorkouts) {
@@ -41,7 +44,6 @@
         }
       }, []);
 
-      // 데이터가 변경될 때마다 아이폰 로컬 스토리지에 저장하기
       useEffect(() => {
         if (Object.keys(workouts).length > 0) {
           localStorage.setItem('myWorkouts', JSON.stringify(workouts));
@@ -69,46 +71,90 @@
       const todaysWorkouts = workouts[currentDate] || [];
 
       return (
-        <div className="app-container min-h-screen pb-10">
-          <div className="max-w-md mx-auto bg-white min-h-screen shadow-lg">
-            <header className="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md">
-              <h1 className="text-2xl font-bold text-center mb-4">💪 오늘의 운동</h1>
+        <div className="min-h-screen pb-12">
+          <div className="max-w-md mx-auto bg-[#121212] min-h-screen shadow-2xl">
+            
+            {/* 헤더 영역 */}
+            <header className="bg-[#1a1a1a] safe-pt pb-6 px-6 rounded-b-3xl shadow-md border-b border-neutral-800">
+              <h1 className="text-2xl font-extrabold text-center mb-5 text-gray-100 tracking-tight">
+                <span className="text-red-600 mr-2">🩸</span>오늘의 운동
+              </h1>
               <input
                 type="date"
                 value={currentDate}
                 onChange={(e) => setCurrentDate(e.target.value)}
-                className="w-full text-black p-3 rounded-xl border-none focus:ring-2 focus:ring-blue-300 text-lg font-semibold text-center"
+                className="w-full bg-[#2a2a2a] text-white p-3 rounded-xl border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-red-600 text-lg font-semibold text-center tracking-wider"
               />
             </header>
 
             <main className="p-6">
-              <form onSubmit={handleAdd} className="bg-gray-50 p-5 rounded-2xl shadow-sm border border-gray-100 mb-6 space-y-4">
-                <input required type="text" placeholder="종목 (예: 벤치프레스)" className="w-full p-3 border rounded-xl"
-                  value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-                <div className="flex gap-2">
-                  <input type="number" placeholder="kg" className="w-1/3 p-3 border rounded-xl"
-                    value={form.weight} onChange={e => setForm({...form, weight: e.target.value})} />
-                  <input type="number" placeholder="세트" className="w-1/3 p-3 border rounded-xl"
-                    value={form.sets} onChange={e => setForm({...form, sets: e.target.value})} />
-                  <input type="number" placeholder="회" className="w-1/3 p-3 border rounded-xl"
-                    value={form.reps} onChange={e => setForm({...form, reps: e.target.value})} />
+              {/* 입력 폼 */}
+              <form onSubmit={handleAdd} className="bg-[#1a1a1a] p-5 rounded-2xl shadow-sm border border-neutral-800 mb-8 space-y-4">
+                <input 
+                  required 
+                  type="text" 
+                  placeholder="종목 (예: 벤치프레스)" 
+                  className="w-full bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
+                  value={form.name} 
+                  onChange={e => setForm({...form, name: e.target.value})} 
+                />
+                <div className="flex gap-3">
+                  <input 
+                    type="number" 
+                    placeholder="kg" 
+                    className="w-1/3 bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
+                    value={form.weight} 
+                    onChange={e => setForm({...form, weight: e.target.value})} 
+                  />
+                  <input 
+                    type="number" 
+                    placeholder="세트" 
+                    className="w-1/3 bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
+                    value={form.sets} 
+                    onChange={e => setForm({...form, sets: e.target.value})} 
+                  />
+                  <input 
+                    type="number" 
+                    placeholder="회" 
+                    className="w-1/3 bg-[#2a2a2a] text-white placeholder-gray-500 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-600 transition"
+                    value={form.reps} 
+                    onChange={e => setForm({...form, reps: e.target.value})} 
+                  />
                 </div>
-                <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded-xl font-bold active:bg-blue-700 transition">추가하기</button>
+                <button 
+                  type="submit" 
+                  className="w-full bg-red-600 hover:bg-red-700 text-white p-3 rounded-xl font-bold active:scale-95 transition-transform shadow-[0_0_15px_rgba(220,38,38,0.3)]"
+                >
+                  기록 추가하기
+                </button>
               </form>
 
-              <div className="space-y-3">
+              {/* 기록 리스트 */}
+              <div className="space-y-4">
                 {todaysWorkouts.length === 0 ? (
-                  <p className="text-center text-gray-400 py-8">기록이 없습니다. 득근하세요! 🔥</p>
+                  <div className="text-center py-10 opacity-70">
+                    <p className="text-neutral-500 text-lg mb-2">기록이 없습니다.</p>
+                    <p className="text-red-500 font-semibold">득근하세요! 🔥</p>
+                  </div>
                 ) : (
                   todaysWorkouts.map(w => (
-                    <div key={w.id} className="flex justify-between items-center p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                    <div key={w.id} className="flex justify-between items-center p-4 bg-[#1a1a1a] border border-neutral-800 rounded-2xl shadow-sm hover:border-red-900 transition-colors">
                       <div>
-                        <p className="font-bold text-gray-800 text-lg">{w.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {w.weight && `${w.weight}kg`} {w.weight && w.sets && '·'} {w.sets && `${w.sets}세트`} {(w.weight || w.sets) && w.reps && '·'} {w.reps && `${w.reps}회`}
+                        <p className="font-bold text-gray-100 text-lg tracking-wide">{w.name}</p>
+                        <p className="text-sm text-neutral-400 mt-1">
+                          {w.weight && <span className="text-red-400 font-semibold">{w.weight}</span>}{w.weight && 'kg'} 
+                          {w.weight && w.sets && <span className="mx-1 text-neutral-600">|</span>} 
+                          {w.sets && <span className="text-gray-300">{w.sets}</span>}{w.sets && '세트'} 
+                          {(w.weight || w.sets) && w.reps && <span className="mx-1 text-neutral-600">|</span>} 
+                          {w.reps && <span className="text-gray-300">{w.reps}</span>}{w.reps && '회'}
                         </p>
                       </div>
-                      <button onClick={() => handleDelete(w.id)} className="text-red-400 p-2 text-xl active:text-red-600">×</button>
+                      <button 
+                        onClick={() => handleDelete(w.id)} 
+                        className="text-neutral-600 p-2 text-2xl active:text-red-600 transition-colors"
+                      >
+                        ×
+                      </button>
                     </div>
                   ))
                 )}
